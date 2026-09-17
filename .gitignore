@@ -1,0 +1,17 @@
+# Sanal ortam (kur.sh yeniden oluşturur)
+venv/
+
+# Model ağırlıkları (~8.3 GB, ilk çalıştırmada Hugging Face'ten iner)
+model/
+
+# ACE-Step kaynak kodu (kur.sh klonlar)
+acestep/
+
+# Üretilen ses dosyaları
+output/
+
+# Loglar
+*.log
+
+# macOS
+.DS_Store

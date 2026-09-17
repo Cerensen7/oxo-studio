@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OXO Studio</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='9' fill='%23ff5f95'/%3E%3Ccircle cx='12.8' cy='14.2' r='1.3' fill='white'/%3E%3Ccircle cx='19.2' cy='14.2' r='1.3' fill='white'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/statik/bootstrap-icons.css">
+<style>
+/* ============================================================
+   OXO Studio — yerel müzik üretim paneli
+   ============================================================ */
+:root{
+  --oxo:#ff5f95;          /* aksolot pembesi */
+  --oxo-koyu:#e8497f;
+  --oxo-soluk:#fff0f5;
+  --yan:#14141d;
+  --yan-2:#1d1d2b;
+  --yan-yazi:#8b8ba7;
+  --govde:#f6f7fb;
+  --kart:#ffffff;
+  --kenar:#eceef4;
+  --metin:#15161d;
+  --gri:#7a7e95;
+  --yesil:#1bc5a3; --yesil-soluk:#e6faf6;
+  --mor:#7b6ef6;   --mor-soluk:#f0eeff;
+  --amber:#f5a524; --amber-soluk:#fff6e6;
+  --kirmizi:#f2405d;--kirmizi-soluk:#ffeef1;
+  --golge:0 1px 2px rgba(20,20,29,.04), 0 8px 24px rgba(20,20,29,.05);
+  --r:14px;
+  --yan-g:264px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--govde); color:var(--metin);
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+  font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,p{margin:0}
+button{font:inherit}
+a{text-decoration:none}
+
+/* ---------- kenar çubuğu ---------- */
+#yan{
+  position:fixed; top:0; left:0; bottom:0; width:var(--yan-g);
+  background:var(--yan); display:flex; flex-direction:column;
+  z-index:1040; transition:transform .25s ease;
+}
+.marka{
+  display:flex; align-items:center; gap:11px; height:72px;
+  padding:0 22px; flex-shrink:0;
+}
+.marka svg{flex-shrink:0}
+.marka-yazi b{color:#fff; font-size:16.5px; font-weight:700; letter-spacing:-.2px; display:block}
+.marka-yazi span{color:#5c5c78; font-size:10.5px; letter-spacing:1.4px; text-transform:uppercase}
+#yan nav{padding:8px 14px 20px; overflow-y:auto; flex:1}
+.nav-baslik{
+  color:#4a4a63; font-size:10.5px; font-weight:700; letter-spacing:1.3px;
+  text-transform:uppercase; padding:16px 12px 8px;
+}
+.nav-oge{
+  display:flex; align-items:center; gap:12px; width:100%;
+  padding:11px 12px; color:var(--yan-yazi); border-radius:9px;
+  font-weight:500; font-size:14px; margin-bottom:2px;
+  background:none; border:0; text-align:left; cursor:pointer;
+  transition:background .15s, color .15s;
+}
+.nav-oge:hover{color:#fff; background:var(--yan-2)}
+.nav-oge.aktif{color:#fff; background:var(--yan-2)}
+.nav-oge.aktif i{color:var(--oxo)}
+.nav-oge i{font-size:17px; width:20px; text-align:center; flex-shrink:0}
+.nav-sayi{
+  margin-left:auto; background:#2a2a3d; color:#a5a5c0;
+  font-size:11px; font-weight:700; padding:2px 8px; border-radius:20px;
+}
+.yan-alt{
+  padding:16px 22px; border-top:1px solid #26263a;
+  color:#4f4f6b; font-size:11px; line-height:1.6; flex-shrink:0;
+}
+.yan-alt b{color:#6d6d8e; font-weight:600}
+#perde{
+  position:fixed; inset:0; background:rgba(15,15,25,.55);
+  z-index:1030; opacity:0; pointer-events:none; transition:opacity .25s;
+}
+
+/* ---------- üst çubuk + gövde ---------- */
+#govde{margin-left:var(--yan-g); min-height:100vh; display:flex; flex-direction:column}
+#ust{
+  position:sticky; top:0; z-index:1020;
+  background:rgba(255,255,255,.88); backdrop-filter:saturate(180%) blur(12px);
+  border-bottom:1px solid var(--kenar);
+  display:flex; align-items:center; gap:14px;
+  padding:0 30px; height:72px; flex-shrink:0;
+}
+#menu-btn{
+  display:none; width:38px; height:38px; border-radius:9px; border:1px solid var(--kenar);
+  background:#fff; color:var(--metin); font-size:18px; cursor:pointer;
+  align-items:center; justify-content:center; flex-shrink:0;
+}
+.ust-yazi{min-width:0; flex:1}
+.ust-yazi h1{font-size:17px; font-weight:650; letter-spacing:-.2px}
+.ust-yazi p{
+  font-size:12.5px; color:var(--gri); margin-top:1px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.icerik{padding:26px 30px 70px; flex:1}
+.bolum{max-width:1240px; margin:0 auto}
+.bolum + .bolum{margin-top:22px}
+
+/* ---------- rozet ---------- */
+.rozet{
+  display:inline-flex; align-items:center; gap:7px; flex-shrink:0;
+  padding:7px 13px; border-radius:8px; font-size:12px; font-weight:600;
+  white-space:nowrap;
+}
+.nokta{width:7px; height:7px; border-radius:50%; flex-shrink:0}
+@keyframes nb{0%,100%{opacity:1}50%{opacity:.2}}
+.nabiz{animation:nb 1.3s ease-in-out infinite}
+
+/* ---------- istatistik ızgarası ---------- */
+.ist-izgara{
+  display:grid; gap:18px;
+  grid-template-columns:repeat(auto-fit, minmax(212px, 1fr));
+}
+.ist{
+  background:var(--kart); border-radius:var(--r); padding:20px;
+  box-shadow:var(--golge); display:flex; align-items:center; gap:15px;
+}
+.ist .ikon{
+  width:46px; height:46px; border-radius:12px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:21px;
+}
+.ist .deger{font-size:23px; font-weight:700; letter-spacing:-.5px; line-height:1.15}
+.ist .deger small{font-size:13px; font-weight:500; color:var(--gri)}
+.ist .etiket{font-size:12px; color:var(--gri); margin-top:1px}
+
+/* ---------- kart ---------- */
+.kart{background:var(--kart); border-radius:var(--r); box-shadow:var(--golge); overflow:hidden}
+.kart-bas{
+  padding:19px 24px; border-bottom:1px solid var(--kenar);
+  display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+}
+.kart-bas h2{font-size:15.5px; font-weight:650; letter-spacing:-.2px}
+.kart-bas p{font-size:12.5px; color:var(--gri); margin-top:2px}
+.kart-govde{padding:24px}
+
+/* ---------- form ---------- */
+.alan-izgara{display:grid; gap:18px; grid-template-columns:repeat(auto-fit, minmax(220px,1fr))}
+.alan label{display:block; font-weight:600; font-size:12.5px; margin-bottom:7px}
+.alan label span{font-weight:400; color:var(--gri)}
+.girdi{
+  width:100%; background:var(--govde); border:1.5px solid transparent;
+  border-radius:10px; padding:11px 14px; font-size:14px; color:var(--metin);
+  transition:border-color .15s, background .15s; -webkit-appearance:none; appearance:none;
+}
+select.girdi{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237a7e95' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 14px center; padding-right:36px;
+}
+.girdi:focus{outline:none; background:#fff; border-color:var(--oxo)}
+.girdi::placeholder{color:#a9adc0}
+input[type=range]{
+  width:100%; height:5px; border-radius:3px; background:var(--kenar);
+  -webkit-appearance:none; appearance:none; margin:13px 0 0;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none; width:19px; height:19px; border-radius:50%;
+  background:#fff; border:2.5px solid var(--oxo); cursor:pointer;
+  box-shadow:0 1px 4px rgba(20,20,29,.18);
+}
+.deger-yazi{color:var(--oxo); font-weight:700}
+
+/* ---------- düğmeler ---------- */
+.dugme{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  border:0; border-radius:10px; padding:12px 22px;
+  font-weight:600; font-size:14px; cursor:pointer; transition:.15s;
+}
+.dugme-ana{background:var(--oxo); color:#fff}
+.dugme-ana:hover:not(:disabled){background:var(--oxo-koyu)}
+.dugme-ana:disabled{background:#c9ccd8; cursor:not-allowed}
+.dugme-sade{background:var(--govde); color:#5a5e73}
+.dugme-sade:hover{background:var(--kenar)}
+.ikon-dugme{
+  width:34px; height:34px; border-radius:9px; border:0; background:var(--govde);
+  color:var(--gri); display:inline-flex; align-items:center; justify-content:center;
+  cursor:pointer; transition:.15s; flex-shrink:0;
+}
+.ikon-dugme:hover{background:var(--oxo-soluk); color:var(--oxo)}
+.ikon-dugme.sil:hover{background:var(--kirmizi-soluk); color:var(--kirmizi)}
+
+/* ---------- ilerleme ---------- */
+.serit{height:8px; border-radius:5px; background:var(--kenar); overflow:hidden}
+.serit i{display:block; height:100%; background:var(--oxo); border-radius:5px; transition:width .4s ease}
+.serit.belirsiz i{
+  width:38% !important;
+  background:linear-gradient(90deg,transparent,var(--oxo),transparent);
+  animation:kay 1.4s linear infinite;
+}
+@keyframes kay{0%{transform:translateX(-100%)}100%{transform:translateX(320%)}}
+
+/* ---------- parça listesi ---------- */
+.liste-bas, .satir{
+  display:grid; align-items:center; gap:16px;
+  grid-template-columns:minmax(0,1.6fr) 250px 78px 86px 96px;
+  padding:14px 24px;
+}
+.liste-bas{
+  font-size:10.5px; text-transform:uppercase; letter-spacing:.8px;
+  color:var(--gri); font-weight:700; padding-top:0; padding-bottom:12px;
+  border-bottom:1px solid var(--kenar);
+}
+.satir{border-bottom:1px solid var(--kenar)}
+.satir:last-child{border-bottom:0}
+.satir:hover{background:#fbfbfd}
+.satir-ad{font-weight:650; font-size:14px; word-break:break-word}
+.satir-alt{font-size:11.5px; color:var(--gri); margin-top:2px}
+.satir-islem{display:flex; gap:7px; justify-content:flex-end}
+.satir audio{width:100%; height:36px; display:block}
+.mobil-etiket{display:none}
+.bos{text-align:center; padding:56px 24px; color:var(--gri)}
+.bos i{font-size:42px; opacity:.22; display:block; margin-bottom:14px}
+
+/* ---------- bilgi kutusu ---------- */
+.bilgi{
+  display:flex; gap:12px; padding:15px 17px; border-radius:11px;
+  background:var(--amber-soluk); color:#8a5a00; font-size:13px; line-height:1.55;
+}
+.bilgi.iyi{background:var(--yesil-soluk); color:#0e7a66}
+.bilgi.kotu{background:var(--kirmizi-soluk); color:#b51f3c}
+.bilgi i{font-size:17px; flex-shrink:0; margin-top:1px}
+
+/* ---------- mix satırı ---------- */
+.mix-satir{
+  display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+  padding:15px 0; border-bottom:1px solid var(--kenar);
+}
+.mix-satir:last-child{border-bottom:0}
+.mix-satir audio{height:36px; flex:1; min-width:210px}
+
+/* ============================================================
+   duyarlı düzen
+   ============================================================ */
+@media (max-width:1199px){
+  .liste-bas, .satir{grid-template-columns:minmax(0,1.4fr) 210px 70px 90px}
+  .liste-bas span:nth-child(4), .satir .s-boyut{display:none}
+}
+@media (max-width:991px){
+  #yan{transform:translateX(-100%); box-shadow:0 0 40px rgba(0,0,0,.3)}
+  body.yan-acik #yan{transform:none}
+  body.yan-acik #perde{opacity:1; pointer-events:auto}
+  body.yan-acik{overflow:hidden}
+  #govde{margin-left:0}
+  #menu-btn{display:flex}
+  #ust{padding:0 18px; height:64px}
+  .icerik{padding:20px 18px 60px}
+  .ist-izgara{gap:14px; grid-template-columns:repeat(auto-fit, minmax(160px,1fr))}
+  .ist{padding:16px; gap:13px}
+  .ist .ikon{width:40px; height:40px; font-size:19px}
+  .ist .deger{font-size:20px}
+
+  /* tablo -> kart */
+  .liste-bas{display:none}
+  .satir{
+    display:block; padding:16px 18px;
+  }
+  .satir > div{margin-bottom:11px}
+  .satir > div:last-child{margin-bottom:0}
+  .mobil-etiket{
+    display:inline; font-size:11px; color:var(--gri);
+    text-transform:uppercase; letter-spacing:.6px; font-weight:700; margin-right:6px;
+  }
+  .satir .s-boyut{display:block !important}
+  .satir-islem{justify-content:flex-start}
+  .kart-bas{padding:16px 18px}
+  .kart-govde{padding:18px}
+}
+@media (max-width:575px){
+  .ist-izgara{grid-template-columns:1fr 1fr; gap:12px}
+  .ist{flex-direction:column; align-items:flex-start; gap:10px; padding:15px}
+  .ist .deger{font-size:19px}
+  .alan-izgara{grid-template-columns:1fr; gap:15px}
+  .ust-yazi h1{font-size:15.5px}
+  .dugme{width:100%}
+  .marka{height:64px}
+}
+</style>
+</head>
+<body>
+
+<div id="perde" onclick="yanKapat()"></div>
+
+<aside id="yan">
+  <div class="marka">
+    <svg width="34" height="34" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+      <path d="M10.5 11.5L4.5 7.5M10 16H3M10.5 20.5L4.5 24.5" stroke="#ff9ec0"
+            stroke-width="2" stroke-linecap="round"/>
+      <path d="M21.5 11.5L27.5 7.5M22 16H29M21.5 20.5L27.5 24.5" stroke="#ff9ec0"
+            stroke-width="2" stroke-linecap="round"/>
+      <circle cx="16" cy="16" r="8.2" fill="#ff5f95"/>
+      <circle cx="13.2" cy="14.4" r="1.25" fill="#fff"/>
+      <circle cx="18.8" cy="14.4" r="1.25" fill="#fff"/>
+      <path d="M13.6 19.2Q16 21 18.4 19.2" stroke="#fff" stroke-width="1.4"
+            fill="none" stroke-linecap="round"/>
+    </svg>
+    <div class="marka-yazi"><b>OXO Studio</b><span>Yerel Müzik</span></div>
+  </div>
+
+  <nav>
+    <div class="nav-baslik">Menü</div>
+    <button class="nav-oge aktif" data-git="panel"><i class="bi bi-grid-1x2"></i>Panel</button>
+    <button class="nav-oge" data-git="uret"><i class="bi bi-stars"></i>Parça Üret</button>
+    <button class="nav-oge" data-git="parcalar">
+      <i class="bi bi-music-note-list"></i>Parçalar<span class="nav-sayi" id="yan-sayi">0</span>
+    </button>
+    <button class="nav-oge" data-git="mix"><i class="bi bi-vinyl"></i>Uzun Mix</button>
+
+    <div class="nav-baslik">Sistem</div>
+    <button class="nav-oge" onclick="klasorAc()"><i class="bi bi-folder2-open"></i>Çıktı Klasörü</button>
+    <button class="nav-oge" onclick="modelBosalt()"><i class="bi bi-memory"></i>Modeli Boşalt</button>
+  </nav>
+
+  <div class="yan-alt">
+    <b>ACE-Step</b> · Apache 2.0<br>Ticari kullanıma açık
+  </div>
+</aside>
+
+<div id="govde">
+  <header id="ust">
+    <button id="menu-btn" onclick="yanAc()" aria-label="Menü"><i class="bi bi-list"></i></button>
+    <div class="ust-yazi">
+      <h1 id="sayfa-ad">Panel</h1>
+      <p id="sayfa-alt">Hazır</p>
+    </div>
+    <div id="rozet"></div>
+  </header>
+
+  <main class="icerik">
+
+    <section class="bolum" id="panel">
+      <div class="ist-izgara">
+        <div class="ist">
+          <div class="ikon" style="background:var(--oxo-soluk);color:var(--oxo)">
+            <i class="bi bi-music-note-beamed"></i></div>
+          <div><div class="deger" id="s-adet">0</div><div class="etiket">Üretilen parça</div></div>
+        </div>
+        <div class="ist">
+          <div class="ikon" style="background:var(--yesil-soluk);color:var(--yesil)">
+            <i class="bi bi-clock-history"></i></div>
+          <div><div class="deger" id="s-dk">0<small> dk</small></div>
+               <div class="etiket">Toplam malzeme</div></div>
+        </div>
+        <div class="ist">
+          <div class="ikon" style="background:var(--mor-soluk);color:var(--mor)">
+            <i class="bi bi-cpu"></i></div>
+          <div><div class="deger" id="s-model" style="font-size:17px">—</div>
+               <div class="etiket">Model</div></div>
+        </div>
+        <div class="ist">
+          <div class="ikon" style="background:var(--amber-soluk);color:var(--amber)">
+            <i class="bi bi-hdd"></i></div>
+          <div><div class="deger" id="s-disk">—</div><div class="etiket">Boş disk</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="bolum" id="ilerleme-bolum" style="display:none">
+      <div class="kart"><div class="kart-govde">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px">
+          <div style="min-width:0">
+            <div style="font-weight:650" id="il-mesaj">—</div>
+            <div style="font-size:12.5px;color:var(--gri);margin-top:2px" id="il-alt"></div>
+          </div>
+          <button class="dugme dugme-sade" style="padding:9px 16px" onclick="iptal()">
+            <i class="bi bi-x-lg"></i>İptal</button>
+        </div>
+        <div class="serit" id="il-serit"><i style="width:0%"></i></div>
+      </div></div>
+    </section>
+
+    <section class="bolum" id="uret">
+      <div class="kart">
+        <div class="kart-bas"><div>
+          <h2>Yeni Parça Üret</h2>
+          <p>Stil seç, süreyi ayarla, üret. Her parça ayrı dosya olarak kaydedilir.</p>
+        </div></div>
+        <div class="kart-govde">
+          <div class="alan-izgara">
+            <div class="alan">
+              <label for="f-stil">Stil</label>
+              <select class="girdi" id="f-stil"></select>
+            </div>
+            <div class="alan" style="grid-column:span 2; min-width:0">
+              <label for="f-ek">Ek tanım <span>— isteğe bağlı, İngilizce</span></label>
+              <input class="girdi" id="f-ek" placeholder="örn: soft rain, cozy autumn study session">
+            </div>
+          </div>
+          <div class="alan-izgara" style="margin-top:20px">
+            <div class="alan">
+              <label>Süre — <span class="deger-yazi" id="f-sure-yazi">4:00</span></label>
+              <input type="range" id="f-sure" min="60" max="360" step="15" value="240">
+            </div>
+            <div class="alan">
+              <label>Kalite — <span class="deger-yazi" id="f-adim-yazi">60 adım</span></label>
+              <input type="range" id="f-adim" min="25" max="100" step="5" value="60">
+            </div>
+            <div class="alan">
+              <label for="f-seed">Seed <span>— boş bırakırsan rastgele</span></label>
+              <input class="girdi" id="f-seed" placeholder="rastgele" inputmode="numeric">
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:16px;margin-top:24px;flex-wrap:wrap">
+            <button class="dugme dugme-ana" id="b-uret" onclick="uret()">
+              <i class="bi bi-stars"></i>Üret</button>
+            <span style="font-size:12.5px;color:var(--gri)" id="ipucu"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="bolum" id="parcalar">
+      <div class="kart">
+        <div class="kart-bas">
+          <div><h2>Parçalar</h2><p>Dinle, beğenmediğini sil. Silinen parça mix'e girmez.</p></div>
+          <span class="rozet" style="background:var(--oxo-soluk);color:var(--oxo)" id="p-sayi">0 parça</span>
+        </div>
+        <div class="liste-bas">
+          <span>Dosya</span><span>Dinle</span><span>Süre</span><span>Boyut</span>
+          <span style="text-align:right">İşlem</span>
+        </div>
+        <div id="p-liste"></div>
+        <div class="bos" id="p-bos">
+          <i class="bi bi-music-note-list"></i>Henüz parça yok — yukarıdan ilkini üret.
+        </div>
+      </div>
+    </section>
+
+    <section class="bolum" id="mix">
+      <div class="kart">
+        <div class="kart-bas"><div>
+          <h2>Uzun Mix</h2>
+          <p>Parçaları karıştırıp crossfade ile birleştirir, tek MP3 çıkarır.</p>
+        </div></div>
+        <div class="kart-govde">
+          <div class="alan-izgara">
+            <div class="alan">
+              <label>Hedef süre — <span class="deger-yazi" id="m-saat-yazi">3 saat</span></label>
+              <input type="range" id="m-saat" min="0.5" max="6" step="0.5" value="3">
+            </div>
+            <div class="alan">
+              <label>Geçiş — <span class="deger-yazi" id="m-xf-yazi">6 sn</span></label>
+              <input type="range" id="m-xf" min="2" max="15" step="1" value="6">
+            </div>
+            <div class="alan">
+              <label for="m-lufs">Ses seviyesi</label>
+              <select class="girdi" id="m-lufs">
+                <option value="-16">Normal (-16 LUFS)</option>
+                <option value="-20">Konuşma altı (-20 LUFS)</option>
+                <option value="-23">Çok kısık (-23 LUFS)</option>
+              </select>
+            </div>
+            <div class="alan">
+              <label for="m-br">Kalite</label>
+              <select class="girdi" id="m-br">
+                <option value="192k">192 kbps</option>
+                <option value="256k" selected>256 kbps</option>
+                <option value="320k">320 kbps</option>
+              </select>
+            </div>
+          </div>
+          <div id="mix-bilgi" style="margin-top:20px"></div>
+          <button class="dugme dugme-ana" id="b-mix" style="margin-top:20px" onclick="mixYap()">
+            <i class="bi bi-vinyl"></i>Mix Oluştur</button>
+          <div id="mix-liste"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+let SON = null;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function sn2(s){
+  s = Math.round(s || 0);
+  const sa = Math.floor(s/3600), dk = Math.floor(s%3600/60), sn = s%60;
+  const p = n => String(n).padStart(2,'0');
+  return sa ? `${sa}:${p(dk)}:${p(sn)}` : `${dk}:${p(sn)}`;
+}
+
+/* ---------- kenar çubuğu ---------- */
+function yanAc(){ document.body.classList.add('yan-acik'); }
+function yanKapat(){ document.body.classList.remove('yan-acik'); }
+
+document.querySelectorAll('.nav-oge[data-git]').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('.nav-oge').forEach(x => x.classList.remove('aktif'));
+    b.classList.add('aktif');
+    $(b.dataset.git).scrollIntoView({behavior:'smooth', block:'start'});
+    yanKapat();
+  };
+});
+
+/* ---------- kaydırıcılar ---------- */
+$('f-sure').oninput = e => { $('f-sure-yazi').textContent = sn2(+e.target.value); };
+$('f-adim').oninput = e => { $('f-adim-yazi').textContent = e.target.value + ' adım'; };
+$('m-xf').oninput  = e => { $('m-xf-yazi').textContent = e.target.value + ' sn'; };
+$('m-saat').oninput = e => {
+  $('m-saat-yazi').textContent = e.target.value + ' saat';
+  if(SON) mixBilgi(SON);
+};
+
+/* ---------- veri ---------- */
+async function durumAl(){
+  try{
+    const r = await fetch('/api/durum');
+    SON = await r.json();
+    ciz(SON);
+  }catch(e){ /* sunucu kapalı olabilir */ }
+}
+
+function ciz(d){
+  const i = d.istatistik;
+  $('s-adet').textContent = i.adet;
+  $('s-dk').innerHTML = i.toplam_dakika + '<small> dk</small>';
+  $('s-disk').textContent = (d.bos_disk_gb ?? '—') + ' GB';
+  $('yan-sayi').textContent = i.adet;
+  $('p-sayi').textContent = i.adet + ' parça';
+
+  const indi = d.model_gb >= d.model_hedef_gb * 0.97;
+  $('s-model').textContent = d.model_yuklu ? 'Bellekte'
+    : (indi ? 'Hazır' : d.model_gb.toFixed(1) + ' / ' + d.model_hedef_gb + ' GB');
+
+  const sel = $('f-stil');
+  if(!sel.options.length && d.stiller)
+    d.stiller.forEach((s, n) => sel.add(new Option(s, n)));
+
+  const mesgul = d.asama !== 'bos';
+
+  $('rozet').innerHTML = mesgul
+    ? `<span class="rozet" style="background:var(--oxo-soluk);color:var(--oxo)">
+         <span class="nokta nabiz" style="background:var(--oxo)"></span>Çalışıyor</span>`
+    : d.son_hata
+    ? `<span class="rozet" style="background:var(--kirmizi-soluk);color:var(--kirmizi)">
+         <span class="nokta" style="background:var(--kirmizi)"></span>Hata</span>`
+    : `<span class="rozet" style="background:var(--yesil-soluk);color:var(--yesil)">
+         <span class="nokta" style="background:var(--yesil)"></span>Hazır</span>`;
+
+  $('sayfa-alt').innerHTML = d.son_hata
+    ? `<span style="color:var(--kirmizi)">${esc(d.son_hata)}</span>` : esc(d.mesaj);
+
+  /* ilerleme */
+  $('ilerleme-bolum').style.display = mesgul ? 'block' : 'none';
+  if(mesgul){
+    $('il-mesaj').textContent = d.mesaj;
+    const serit = $('il-serit'), cubuk = serit.firstElementChild;
+    if(d.toplam_adim){
+      serit.classList.remove('belirsiz');
+      cubuk.style.width = (d.adim / d.toplam_adim * 100) + '%';
+    }else{
+      serit.classList.add('belirsiz');
+    }
+    let alt = d.toplam_adim ? `${d.adim} / ${d.toplam_adim} adım` : 'hazırlanıyor';
+    alt += ` · geçen ${sn2(d.gecen)}`;
+    if(d.kalan) alt += ` · kalan ~${sn2(d.kalan)}`;
+    $('il-alt').textContent = alt;
+  }
+  $('b-uret').disabled = mesgul;
+  $('b-mix').disabled = mesgul;
+  $('ipucu').textContent = (!d.model_yuklu && !mesgul)
+    ? 'İlk üretimde model belleğe yüklenecek, ekstra 1-2 dakika.' : '';
+
+  /* parçalar */
+  $('p-bos').style.display = d.parcalar.length ? 'none' : 'block';
+  $('p-liste').innerHTML = d.parcalar.map(p => {
+    const ad = encodeURIComponent(p.dosya);
+    return `<div class="satir">
+      <div>
+        <div class="satir-ad">${esc(p.dosya)}</div>
+        <div class="satir-alt">${esc(p.stil)}${p.seed ? ' · seed ' + p.seed : ''}</div>
+      </div>
+      <div><audio controls preload="none" src="/ses/${ad}"></audio></div>
+      <div><span class="mobil-etiket">Süre</span>${sn2(p.sure)}</div>
+      <div class="s-boyut"><span class="mobil-etiket">Boyut</span>${p.boyut_mb} MB</div>
+      <div class="satir-islem">
+        <a class="ikon-dugme" href="/indir/${ad}" download title="İndir">
+          <i class="bi bi-download"></i></a>
+        <button class="ikon-dugme sil" onclick="sil('${ad}')" title="Sil">
+          <i class="bi bi-trash3"></i></button>
+      </div>
+    </div>`;
+  }).join('');
+
+  mixBilgi(d);
+
+  $('mix-liste').innerHTML = d.mixler.length
+    ? '<div style="margin-top:22px;border-top:1px solid var(--kenar)">' +
+      d.mixler.map(m => {
+        const ad = encodeURIComponent(m.dosya);
+        return `<div class="mix-satir">
+          <div style="min-width:170px">
+            <div class="satir-ad">${esc(m.dosya)}</div>
+            <div class="satir-alt">${sn2(m.sure)} · ${m.boyut_mb} MB · ${esc(m.tarih)}</div>
+          </div>
+          <audio controls preload="none" src="/ses/${ad}"></audio>
+          <a class="ikon-dugme" href="/indir/${ad}" download><i class="bi bi-download"></i></a>
+        </div>`;
+      }).join('') + '</div>'
+    : '';
+}
+
+function mixBilgi(d){
+  const dk = d.istatistik.toplam_dakika;
+  const saat = +$('m-saat').value;
+  const el = $('mix-bilgi');
+  if(!dk){ el.innerHTML = ''; return; }
+  const kat = saat * 60 / dk;
+  el.innerHTML = kat > 1.05
+    ? `<div class="bilgi"><i class="bi bi-exclamation-circle"></i><div>
+         Elinde <b>${dk} dk</b> benzersiz malzeme var. ${saat} saatlik mix için her parça
+         ortalama <b>${kat.toFixed(1)} kez</b> tekrarlanacak. Tekrarı azaltmak için daha fazla
+         parça üret.</div></div>`
+    : `<div class="bilgi iyi"><i class="bi bi-check-circle"></i><div>
+         Elinde <b>${dk} dk</b> malzeme var — ${saat} saat için yeterli, tekrar olmayacak.</div></div>`;
+}
+
+/* ---------- eylemler ---------- */
+async function gonder(yol, govde){
+  try{
+    const r = await fetch(yol, {method:'POST', headers:{'Content-Type':'application/json'},
+                               body:JSON.stringify(govde || {})});
+    if(!r.ok){ const j = await r.json().catch(()=>({})); alert(j.detail || 'İşlem başarısız'); return; }
+    durumAl();
+  }catch(e){ alert('Sunucuya ulaşılamadı'); }
+}
+function uret(){
+  const s = $('f-seed').value.trim();
+  gonder('/api/uret', {
+    stil:+$('f-stil').value, ek_prompt:$('f-ek').value,
+    sure:+$('f-sure').value, adim:+$('f-adim').value, seed:s ? +s : null,
+  });
+}
+function mixYap(){
+  gonder('/api/mix', {saat:+$('m-saat').value, xfade:+$('m-xf').value,
+                      lufs:+$('m-lufs').value, bitrate:$('m-br').value});
+}
+const iptal = () => gonder('/api/iptal');
+const modelBosalt = () => gonder('/api/model-bosalt');
+const klasorAc = () => fetch('/api/klasor-ac');
+async function sil(ad){
+  if(!confirm(decodeURIComponent(ad) + ' silinecek. Emin misin?')) return;
+  await fetch('/api/parca/' + ad, {method:'DELETE'});
+  durumAl();
+}
+
+durumAl();
+setInterval(durumAl, 1500);
+</script>
+</body>
+</html>
