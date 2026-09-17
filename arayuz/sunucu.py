@@ -313,6 +313,9 @@ HAM_DIR = BASE / "output" / ".ham"
 # (33 MB -> 8.1 MB). Mix MP3'e cevrildiginde tek kayipli adim olur.
 SES_BICIMI = "flac"
 SES_UZANTILARI = ("*.flac", "*.wav")   # eski WAV'lar da listelensin
+MP3_DIR = BASE / "output" / "mp3"      # toplu donusturme ciktisi
+MP3_ONBELLEK = BASE / "output" / ".mp3onbellek"  # tek tek indirme onbellegi
+MP3_BITRATE = "256k"
 
 # Olculerek secildi (bkz. README): 60 Hz altini iki kademeli kesmek
 # ugultuyu 9 dB dusuruyor ve muzikal basdan yalnizca 0.9 dB goturuyor;
@@ -377,6 +380,35 @@ def kalite_olc(yol: Path) -> dict:
                 "rms_db": round(rms, 1), "uyarilar": uyarilar}
     except Exception as e:
         return {"uyarilar": [], "olcum_hatasi": str(e)[:100]}
+
+
+MP3ISI = {"aktif": False, "toplam": 0, "biten": 0}
+
+
+def mp3e_cevir(kaynak: Path, hedef: Path) -> bool:
+    hedef.parent.mkdir(parents=True, exist_ok=True)
+    if hedef.exists() and hedef.stat().st_mtime >= kaynak.stat().st_mtime:
+        return True   # guncel kopya zaten var
+    r = subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-i", str(kaynak),
+         "-c:a", "libmp3lame", "-b:a", MP3_BITRATE, "-ar", "44100", str(hedef)],
+        capture_output=True, text=True, timeout=300,
+    )
+    return r.returncode == 0 and hedef.exists()
+
+
+def toplu_mp3_isi():
+    try:
+        dosyalar = []
+        for kalip in SES_UZANTILARI:
+            dosyalar += PARCA_DIR.glob(kalip)
+        dosyalar = sorted(dosyalar)
+        MP3ISI.update(aktif=True, toplam=len(dosyalar), biten=0)
+        for i, d in enumerate(dosyalar):
+            mp3e_cevir(d, MP3_DIR / (d.stem + ".mp3"))
+            MP3ISI["biten"] = i + 1
+    finally:
+        MP3ISI["aktif"] = False
 
 
 # ---------------------------------------------------------------- uretim
@@ -552,7 +584,7 @@ def api_durum():
         kalan = birim * (DURUM["toplam_adim"] - DURUM["adim"])
 
     mixler = []
-    for m in sorted(MIX_DIR.glob("*.mp3")):
+    for m in sorted(x for x in MIX_DIR.glob("*.mp3") if x.is_file()):
         mixler.append({
             "dosya": m.name,
             "boyut_mb": round(m.stat().st_size / 1e6, 1),
@@ -588,6 +620,7 @@ def api_durum():
         },
         "stiller": [s["ad"] for s in STILLER],
         "seri": dict(SERI),
+        "mp3isi": dict(MP3ISI),
     }
 
 
@@ -669,6 +702,30 @@ def api_ses(ad: str):
         if not yol.exists() or yol.parent != MIX_DIR.resolve():
             raise HTTPException(404, "Dosya yok")
     return FileResponse(str(yol))
+
+
+@app.get("/indir-mp3/{ad}")
+def api_indir_mp3(ad: str):
+    kaynak = _guvenli_parca(ad)
+    hedef = MP3_ONBELLEK / (kaynak.stem + ".mp3")
+    if not mp3e_cevir(kaynak, hedef):
+        raise HTTPException(500, "MP3 dönüştürme başarısız")
+    return FileResponse(str(hedef), media_type="audio/mpeg", filename=hedef.name)
+
+
+@app.post("/api/mp3-hepsi")
+def api_mp3_hepsi():
+    if MP3ISI["aktif"]:
+        raise HTTPException(409, "Dönüştürme zaten çalışıyor")
+    threading.Thread(target=toplu_mp3_isi, daemon=True).start()
+    return {"tamam": True}
+
+
+@app.get("/api/mp3-klasor")
+def api_mp3_klasor():
+    MP3_DIR.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["open", str(MP3_DIR)])
+    return {"tamam": True}
 
 
 @app.get("/indir/{ad}")

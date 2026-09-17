@@ -191,6 +191,8 @@ input[type=range]::-webkit-slider-thumb{
 }
 .ikon-dugme:hover{background:var(--oxo-soluk); color:var(--oxo)}
 .ikon-dugme.sil:hover{background:var(--kirmizi-soluk); color:var(--kirmizi)}
+.ikon-dugme.mp3{font-family:inherit}
+.ikon-dugme.mp3:hover{background:var(--yesil-soluk); color:var(--yesil)}
 
 /* ---------- ilerleme ---------- */
 .serit{height:8px; border-radius:5px; background:var(--kenar); overflow:hidden}
@@ -539,7 +541,12 @@ input[type=range]::-webkit-slider-thumb{
       <div class="kart">
         <div class="kart-bas">
           <div><h2>Parçalar</h2><p>Dinle, beğenmediğini sil. Silinen parça mix'e girmez.</p></div>
-          <span class="rozet" style="background:var(--oxo-soluk);color:var(--oxo)" id="p-sayi">0 parça</span>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <button class="dugme dugme-sade" style="padding:8px 14px;font-size:12.5px"
+                    id="b-mp3" onclick="mp3Hepsi()">
+              <i class="bi bi-file-earmark-music"></i>Tümünü MP3'e çevir</button>
+            <span class="rozet" style="background:var(--oxo-soluk);color:var(--oxo)" id="p-sayi">0 parça</span>
+          </div>
         </div>
         <div class="liste-bas">
           <span>Dosya</span><span>Dinle</span><span>Süre</span><span>Boyut</span>
@@ -730,6 +737,19 @@ function ciz(d){
     if(d.kalan) alt += ` · kalan ~${sn2(d.kalan)}`;
     $('il-alt').textContent = alt;
   }
+  const mi = d.mp3isi || {};
+  const bm = $('b-mp3');
+  if(mi.aktif){
+    bm.disabled = true;
+    bm.innerHTML = `<i class="bi bi-arrow-repeat"></i>Çevriliyor ${mi.biten}/${mi.toplam}`;
+  }else if(bm.dataset.bitti !== '1' && mi.toplam && mi.biten === mi.toplam){
+    bm.dataset.bitti = '1'; bm.disabled = false;
+    bm.innerHTML = `<i class="bi bi-check2"></i>${mi.toplam} MP3 hazır — klasörü aç`;
+    bm.onclick = () => fetch('/api/mp3-klasor');
+  }else if(!mi.toplam){
+    bm.disabled = false;
+  }
+
   const sr = d.seri || {};
   const rz = $('seri-rozet');
   if(sr.aktif){
@@ -759,7 +779,9 @@ function ciz(d){
       <div><span class="mobil-etiket">Süre</span>${sn2(p.sure)}</div>
       <div class="s-boyut"><span class="mobil-etiket">Boyut</span>${p.boyut_mb} MB</div>
       <div class="satir-islem">
-        <a class="ikon-dugme" href="/indir/${ad}" download title="İndir">
+        <a class="ikon-dugme mp3" href="/indir-mp3/${ad}" download
+           title="MP3 indir"><b style="font-size:10px;letter-spacing:-.3px">MP3</b></a>
+        <a class="ikon-dugme" href="/indir/${ad}" download title="Orijinali indir (FLAC)">
           <i class="bi bi-download"></i></a>
         <button class="ikon-dugme sil" onclick="sil('${ad}')" title="Sil">
           <i class="bi bi-trash3"></i></button>
@@ -836,6 +858,9 @@ function mixYap(){
 const iptal = () => gonder('/api/iptal');
 const modelBosalt = () => gonder('/api/model-bosalt');
 const klasorAc = () => fetch('/api/klasor-ac');
+async function mp3Hepsi(){
+  await gonder('/api/mp3-hepsi');
+}
 async function sil(ad){
   if(!confirm(decodeURIComponent(ad) + ' silinecek. Emin misin?')) return;
   await fetch('/api/parca/' + ad, {method:'DELETE'});
