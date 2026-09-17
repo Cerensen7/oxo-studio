@@ -53,9 +53,9 @@ def main():
     ap.add_argument("--seed", type=int, default=None)
     args = ap.parse_args()
 
-    parcalar = sorted(PARCA_DIR.glob("*.wav"))
+    parcalar = sorted(list(PARCA_DIR.glob("*.flac")) + list(PARCA_DIR.glob("*.wav")))
     if not parcalar:
-        sys.exit(f"HATA: {PARCA_DIR} icinde wav yok. Once uret.py calistir.")
+        sys.exit(f"HATA: {PARCA_DIR} icinde ses dosyasi yok. Once uret.py calistir.")
 
     sureler = {p: sure_al(p) for p in parcalar}
     en_kisa = min(sureler.values())

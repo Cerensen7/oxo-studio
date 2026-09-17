@@ -149,7 +149,10 @@ def kayit_ekle(kayit: dict):
 def parcalari_listele() -> list:
     kayitlar = kayitlari_oku()
     out = []
-    for p in sorted(PARCA_DIR.glob("*.wav")):
+    dosyalar = []
+    for kalip in SES_UZANTILARI:
+        dosyalar += PARCA_DIR.glob(kalip)
+    for p in sorted(dosyalar):
         k = kayitlar.get(p.name, {})
         out.append({
             "dosya": p.name,
@@ -179,7 +182,7 @@ def klasor_boyut_gb(yol: Path) -> float:
 
 def sonraki_numara() -> int:
     en = 0
-    for p in PARCA_DIR.glob("lofi_*.wav"):
+    for p in list(PARCA_DIR.glob("lofi_*.flac")) + list(PARCA_DIR.glob("lofi_*.wav")):
         m = re.match(r"lofi_(\d+)", p.stem)
         if m:
             en = max(en, int(m.group(1)))
@@ -305,6 +308,12 @@ def model_bosalt():
 
 HAM_DIR = BASE / "output" / ".ham"
 
+# Temizlik zinciri 1500 Hz uzerini kestigi icin 4 kHz ustunde hic enerji
+# kalmiyor; 48 kHz WAV saklamak bosuna yer. FLAC kayipsiz ve 4 kat kucuk
+# (33 MB -> 8.1 MB). Mix MP3'e cevrildiginde tek kayipli adim olur.
+SES_BICIMI = "flac"
+SES_UZANTILARI = ("*.flac", "*.wav")   # eski WAV'lar da listelensin
+
 # Olculerek secildi (bkz. README): 60 Hz altini iki kademeli kesmek
 # ugultuyu 9 dB dusuruyor ve muzikal basdan yalnizca 0.9 dB goturuyor;
 # afftdn hisirtiyi 8.4 dB azaltiyor. alimiter kirpilmaya karsi emniyet.
@@ -324,7 +333,8 @@ def sesi_temizle(ham: Path, hedef: Path) -> bool:
     try:
         r = subprocess.run(
             ["ffmpeg", "-v", "error", "-y", "-i", str(ham),
-             "-af", TEMIZLIK_ZINCIRI, str(hedef)],
+             "-af", TEMIZLIK_ZINCIRI, "-c:a", "flac", "-compression_level", "8",
+             str(hedef)],
             capture_output=True, text=True, timeout=300,
         )
         if r.returncode == 0 and hedef.exists() and hedef.stat().st_size > 0:
@@ -334,7 +344,7 @@ def sesi_temizle(ham: Path, hedef: Path) -> bool:
     except Exception as e:
         print(f"[!] Temizlik basarisiz ({e}); ham dosya korunuyor")
         try:
-            ham.replace(hedef)
+            ham.replace(hedef.with_suffix(".wav"))
         except Exception:
             pass
         return False
@@ -448,7 +458,7 @@ def _tek_uret(istek: UretIstek, seri_bilgi: str = ""):
 
         seed = istek.seed if istek.seed else random.randint(1, 2**31 - 1)
         idx = sonraki_numara()
-        hedef = PARCA_DIR / f"lofi_{idx:03d}.wav"
+        hedef = PARCA_DIR / f"lofi_{idx:03d}.{SES_BICIMI}"
         HAM_DIR.mkdir(parents=True, exist_ok=True)
         ham = HAM_DIR / f"lofi_{idx:03d}_ham.wav"
 
@@ -622,7 +632,7 @@ def api_mix(istek: MixIstek):
     with KILIT:
         if mesgul():
             raise HTTPException(409, "Şu an başka bir iş çalışıyor")
-        if not list(PARCA_DIR.glob("*.wav")):
+        if not any(PARCA_DIR.glob(k) for k in SES_UZANTILARI):
             raise HTTPException(400, "Önce parça üretmelisin")
         threading.Thread(target=mix_isi, args=(istek,), daemon=True).start()
     return {"tamam": True}
