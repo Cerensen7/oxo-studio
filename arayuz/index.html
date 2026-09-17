@@ -221,6 +221,20 @@ input[type=range]::-webkit-slider-thumb{
 .satir-islem{display:flex; gap:7px; justify-content:flex-end}
 .satir audio{width:100%; height:36px; display:block}
 .mobil-etiket{display:none}
+.cipler{display:flex; flex-wrap:wrap; gap:8px}
+.cip{
+  padding:7px 13px; border-radius:20px; border:1.5px solid var(--kenar);
+  background:#fff; color:var(--gri); font-size:12.5px; font-weight:600;
+  cursor:pointer; transition:.15s; user-select:none;
+}
+.cip:hover{border-color:var(--oxo)}
+.cip.secili{background:var(--oxo); border-color:var(--oxo); color:#fff}
+.uyari-cip{
+  display:inline-block; padding:3px 9px; border-radius:6px; font-size:11px;
+  font-weight:600; background:var(--amber-soluk); color:#8a5a00; margin-left:6px;
+}
+.anahtar{display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none}
+.anahtar input{width:18px; height:18px; accent-color:var(--oxo); cursor:pointer}
 .bos{text-align:center; padding:56px 24px; color:var(--gri)}
 .bos i{font-size:42px; opacity:.22; display:block; margin-bottom:14px}
 
@@ -477,10 +491,40 @@ input[type=range]::-webkit-slider-thumb{
               <input type="range" id="sr-guid" min="4" max="15" step="0.5" value="9">
             </div>
             <div class="alan">
+              <label>Süre çeşitliliği — <span class="deger-yazi" id="sr-sapma-yazi">yok</span></label>
+              <input type="range" id="sr-sapma" min="0" max="60" step="15" value="0">
+              <div style="font-size:11.5px;color:var(--gri);margin-top:6px">
+                Parçalar bu kadar kısa/uzun olabilir
+              </div>
+            </div>
+            <div class="alan">
               <label for="sr-ek">Ortak ek tanım <span>— tümüne uygulanır</span></label>
               <input class="girdi" id="sr-ek" placeholder="örn: cozy autumn study background">
             </div>
           </div>
+
+          <div style="margin-top:22px">
+            <label class="form-label" style="display:block;font-weight:600;font-size:12.5px;margin-bottom:9px">
+              Stiller <span style="font-weight:400;color:var(--gri)">— hiçbiri seçili değilse tümü kullanılır</span>
+            </label>
+            <div class="cipler" id="sr-stiller"></div>
+            <div style="display:flex;gap:14px;margin-top:12px;flex-wrap:wrap">
+              <button class="dugme dugme-sade" style="padding:7px 14px;font-size:12.5px"
+                      onclick="stilSec('hepsi')">Tümünü seç</button>
+              <button class="dugme dugme-sade" style="padding:7px 14px;font-size:12.5px"
+                      onclick="stilSec('hicbiri')">Temizle</button>
+            </div>
+          </div>
+
+          <label class="anahtar" style="margin-top:22px">
+            <input type="checkbox" id="sr-varyasyon" checked>
+            <span>
+              <b style="font-size:13.5px">Varyasyon havuzu</b>
+              <div style="font-size:11.5px;color:var(--gri)">
+                Enstrüman sabit kalır, her parçaya farklı doku ve ruh hali eklenir
+              </div>
+            </span>
+          </label>
           <div style="display:flex;gap:12px;margin-top:24px;flex-wrap:wrap">
             <button class="dugme dugme-ana" id="b-seri" onclick="seriBaslat()">
               <i class="bi bi-collection-play"></i>Seriyi Başlat</button>
@@ -582,6 +626,31 @@ document.querySelectorAll('.nav-oge[data-git]').forEach(b => {
 /* ---------- kaydırıcılar ---------- */
 $('f-sure').oninput = e => { $('f-sure-yazi').textContent = sn2(+e.target.value); };
 $('f-adim').oninput = e => { $('f-adim-yazi').textContent = e.target.value + ' adım'; };
+let SECILI_STILLER = new Set();
+function stilCiz(stiller){
+  const k = $('sr-stiller');
+  if(k.dataset.dolu) return;
+  k.dataset.dolu = '1';
+  k.innerHTML = stiller.map((ad,i) =>
+    `<div class="cip" data-i="${i}" onclick="stilTikla(${i})">${esc(ad)}</div>`).join('');
+}
+function stilTikla(i){
+  SECILI_STILLER.has(i) ? SECILI_STILLER.delete(i) : SECILI_STILLER.add(i);
+  stilGuncelle();
+}
+function stilSec(ne){
+  SECILI_STILLER.clear();
+  if(ne === 'hepsi' && SON) SON.stiller.forEach((_,i) => SECILI_STILLER.add(i));
+  stilGuncelle();
+}
+function stilGuncelle(){
+  document.querySelectorAll('#sr-stiller .cip').forEach(c =>
+    c.classList.toggle('secili', SECILI_STILLER.has(+c.dataset.i)));
+  seriTahmin();
+}
+$('sr-sapma').oninput = e => {
+  $('sr-sapma-yazi').textContent = +e.target.value ? '±' + e.target.value + ' sn' : 'yok';
+};
 $('sr-adet').oninput = e => { $('sr-adet-yazi').textContent = e.target.value; seriTahmin(); };
 $('sr-sure').oninput = e => { $('sr-sure-yazi').textContent = sn2(+e.target.value); seriTahmin(); };
 $('sr-guid').oninput = e => { $('sr-guid-yazi').textContent = e.target.value; };
@@ -626,8 +695,10 @@ function ciz(d){
     : (indi ? 'Hazır' : d.model_gb.toFixed(1) + ' / ' + d.model_hedef_gb + ' GB');
 
   const sel = $('f-stil');
-  if(!sel.options.length && d.stiller)
+  if(!sel.options.length && d.stiller){
     d.stiller.forEach((s, n) => sel.add(new Option(s, n)));
+    stilCiz(d.stiller);
+  }
 
   const mesgul = d.asama !== 'bos';
 
@@ -742,8 +813,10 @@ function seriBaslat(){
   const n = +$('sr-adet').value;
   if(!confirm(`${n} parça üretilecek. Bu uzun sürebilir ve makine bu sırada yavaşlar. Başlatılsın mı?`)) return;
   gonder('/api/seri', {
-    adet:n, sure:+$('sr-sure').value, adim:+$('f-adim').value,
-    guidance:+$('sr-guid').value, ek_prompt:$('sr-ek').value,
+    adet:n, sure:+$('sr-sure').value, sure_sapma:+$('sr-sapma').value,
+    adim:+$('f-adim').value, guidance:+$('sr-guid').value,
+    ek_prompt:$('sr-ek').value, varyasyon:$('sr-varyasyon').checked,
+    stiller:[...SECILI_STILLER],
   });
 }
 const seriDurdur = () => gonder('/api/seri-durdur');

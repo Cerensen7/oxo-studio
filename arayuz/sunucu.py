@@ -43,15 +43,16 @@ MODEL_BOYUT_GB = 8.28  # indirme ilerlemesini yuzdeye cevirmek icin
 # "in A minor" tonaliteye baglanmasi icin, "sparse/minimal" katman
 # sayisini dusurmek icin, "muffled/dark" spektral merkezi indirmek icin.
 TEMEL_PROMPT = (
-    "lo-fi hip hop, instrumental, in A minor, "
-    "simple repeating chord progression, sparse, minimal, "
+    "lo-fi hip hop, instrumental, "
+    "four chord loop, chord change every bar, jazzy seventh chords, "
+    "bassline follows the chord changes, "
     "soft muted drums, clean recording, warm, gentle low pass"
 )
 
 STILLER = [
     {"ad": "Jazzy Rhodes", "tag": "gentle rhodes electric piano, 70 bpm"},
     {"ad": "Naylon Gitar", "tag": "soft nylon string guitar, 68 bpm"},
-    {"ad": "Rüyalı Piyano", "tag": "felt piano, few notes, 65 bpm"},
+    {"ad": "Rüyalı Piyano", "tag": "felt piano, 68 bpm"},
     {"ad": "Sordinli Trompet", "tag": "muted trumpet, slow phrases, 70 bpm"},
     {"ad": "Analog Pad", "tag": "warm analog pad, very slow, 64 bpm"},
     {"ad": "Vibrafon / Yağmur", "tag": "vibraphone, distant rain, 68 bpm"},
@@ -65,6 +66,22 @@ STILLER = [
     {"ad": "Kontrbas", "tag": "upright bass, brushed drums, 74 bpm"},
     {"ad": "Ambient / Vurgusuz", "tag": "ambient pad, almost beatless, 60 bpm"},
 ]
+
+# Ana enstruman sabit kalirken her parcaya farkli doku/ruh hali verir;
+# boylece seri uretimde stil kaymadan cesitlilik olusur.
+VARYASYON_HAVUZU = [
+    "distant rain", "late evening", "soft tape wobble", "sparse and slow",
+    "quiet room tone", "gentle swing", "hazy afternoon", "night window",
+    "slow breathing pace", "faded memory", "warm dusk", "still air",
+    "empty street", "first light", "drifting", "soft footsteps",
+]
+
+# Referans lo-fi parcalarindan olculen hedef araliklar (README'ye bak).
+KALITE_HEDEF = {
+    "merkez": (380, 800),    # spektral merkez Hz
+    "olay_sn": (0.8, 5.5),   # saniyedeki olay sayisi
+    "rms_db": (-30, -10),    # ortalama seviye
+}
 
 app = FastAPI(title="OXO Studio")
 
@@ -142,6 +159,7 @@ def parcalari_listele() -> list:
             "stil": k.get("stil", "-"),
             "seed": k.get("seed"),
             "prompt": k.get("prompt", ""),
+            "kalite": k.get("kalite", {}),
         })
     return out
 
@@ -322,6 +340,35 @@ def sesi_temizle(ham: Path, hedef: Path) -> bool:
         return False
 
 
+def kalite_olc(yol: Path) -> dict:
+    """Uretilen parcayi referans profiline gore olcer. Pahali bir islem
+    oldugu icin sadece uretim aninda bir kez calisir, sonucu kayda yazilir."""
+    try:
+        import numpy as np, librosa, warnings
+        warnings.filterwarnings("ignore")
+        m, sr = librosa.load(str(yol), sr=48000, mono=True)
+        S = np.abs(librosa.stft(m))
+        merkez = float(librosa.feature.spectral_centroid(S=S, sr=sr).mean())
+        olay = len(librosa.onset.onset_detect(y=m, sr=sr, units="time")) / (len(m) / sr)
+        rms = float(20 * np.log10(np.sqrt((m ** 2).mean()) + 1e-9))
+
+        uyarilar = []
+        a, b = KALITE_HEDEF["merkez"]
+        if merkez > b: uyarilar.append("fazla parlak")
+        elif merkez < a: uyarilar.append("fazla boğuk")
+        a, b = KALITE_HEDEF["olay_sn"]
+        if olay > b: uyarilar.append("fazla kalabalık")
+        elif olay < a: uyarilar.append("fazla boş")
+        a, b = KALITE_HEDEF["rms_db"]
+        if rms < a: uyarilar.append("çok kısık")
+        elif rms > b: uyarilar.append("çok yüksek")
+
+        return {"merkez": round(merkez), "olay_sn": round(olay, 2),
+                "rms_db": round(rms, 1), "uyarilar": uyarilar}
+    except Exception as e:
+        return {"uyarilar": [], "olcum_hatasi": str(e)[:100]}
+
+
 # ---------------------------------------------------------------- uretim
 
 class UretIstek(BaseModel):
@@ -341,21 +388,38 @@ SERI = {"aktif": False, "hedef": 0, "tamamlanan": 0, "dur": False}
 class SeriIstek(BaseModel):
     adet: int = 10
     sure: float = 180.0
+    sure_sapma: float = 0.0      # +/- saniye, 0 = hepsi ayni uzunlukta
     adim: int = 60
     guidance: float = 9.0
     ek_prompt: str = ""
+    stiller: list[int] = []      # bos = tum stiller
+    varyasyon: bool = True       # havuzdan doku/ruh hali ekle
 
 
 def seri_isi(istek: SeriIstek):
-    """Stilleri sirayla dolasarak, her seferinde yeni seed ile uretir."""
+    """Secilen stiller arasinda dolasarak, her seferinde farkli seed,
+    doku ve (istenirse) uzunlukla uretir."""
     SERI.update(aktif=True, hedef=istek.adet, tamamlanan=0, dur=False)
+    rng = random.Random()
+    havuz = istek.stiller or list(range(len(STILLER)))
     try:
         for i in range(istek.adet):
             if SERI["dur"]:
                 break
-            # stilleri sirayla dolas, ayni stil ust uste gelmesin
-            stil = (sonraki_numara() - 1) % len(STILLER)
-            tek = UretIstek(stil=stil, ek_prompt=istek.ek_prompt, sure=istek.sure,
+            stil = havuz[i % len(havuz)]
+
+            ekler = []
+            if istek.ek_prompt.strip():
+                ekler.append(istek.ek_prompt.strip())
+            if istek.varyasyon:
+                ekler += rng.sample(VARYASYON_HAVUZU, 2)
+
+            sure = istek.sure
+            if istek.sure_sapma > 0:
+                sure = max(60, istek.sure + rng.uniform(-1, 1) * istek.sure_sapma)
+                sure = round(sure / 15) * 15
+
+            tek = UretIstek(stil=stil, ek_prompt=", ".join(ekler), sure=sure,
                             adim=istek.adim, guidance=istek.guidance, seed=None)
             _tek_uret(tek, seri_bilgi=f"[{i+1}/{istek.adet}] ")
             if DURUM["son_hata"]:
@@ -416,9 +480,13 @@ def _tek_uret(istek: UretIstek, seri_bilgi: str = ""):
         _durum(mesaj=f"{seri_bilgi}{hedef.name} temizleniyor", adim=0, toplam_adim=0)
         temiz = sesi_temizle(ham, hedef)
 
+        _durum(mesaj=f"{seri_bilgi}{hedef.name} ölçülüyor")
+        kalite = kalite_olc(hedef)
+
         gecen = time.time() - DURUM["baslangic"]
         kayit_ekle({
             "temizlendi": temiz,
+            "kalite": kalite,
             "dosya": hedef.name, "prompt": prompt, "stil": stil["ad"],
             "seed": seed, "sure_sn": istek.sure, "adim": istek.adim,
             "guidance": istek.guidance,
