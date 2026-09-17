@@ -42,7 +42,7 @@ pip install --no-cache-dir -q \
   loguru tqdm click soundfile "librosa==0.11.0" numpy \
   "py3langid==0.3.0" "pypinyin==0.53.0" "hangul-romanize==0.1.0" \
   "num2words==0.5.14" "spacy==3.8.4" "accelerate==1.6.0" \
-  fastapi uvicorn
+  torchcodec fastapi uvicorn
 pip install --no-cache-dir -q --no-deps -e "$BASE/acestep"
 
 echo

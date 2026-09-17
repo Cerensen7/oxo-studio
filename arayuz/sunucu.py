@@ -39,28 +39,31 @@ MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
 MODEL_BOYUT_GB = 8.28  # indirme ilerlemesini yuzdeye cevirmek icin
 
+# Kisa tutuldu: uzun etiket listesi modeli dokuyu sismeye itiyor.
+# "in A minor" tonaliteye baglanmasi icin, "sparse/minimal" katman
+# sayisini dusurmek icin, "muffled/dark" spektral merkezi indirmek icin.
 TEMEL_PROMPT = (
-    "lo-fi hip hop, chillhop, instrumental, no vocals, "
-    "warm vinyl crackle, soft dusty drums, mellow sub bass, "
-    "cozy, calm, relaxing, analog tape warmth, low pass filtered"
+    "lo-fi hip hop, instrumental, in A minor, "
+    "simple repeating chord progression, sparse, minimal, "
+    "soft muted drums, clean recording, warm, gentle low pass"
 )
 
 STILLER = [
-    {"ad": "Jazzy Rhodes", "tag": "jazzy rhodes electric piano, laid back swing, 72 bpm"},
-    {"ad": "Naylon Gitar", "tag": "soft nylon string guitar, gentle brushes, 68 bpm"},
-    {"ad": "Rüyalı Piyano", "tag": "dreamy felt piano, sparse chords, 65 bpm"},
-    {"ad": "Sordinli Trompet", "tag": "muted trumpet, late night jazz club, 70 bpm"},
-    {"ad": "Analog Pad", "tag": "warm analog synth pad, slow bloom, 66 bpm"},
-    {"ad": "Vibrafon / Yağmur", "tag": "vibraphone melody, rainy window mood, 69 bpm"},
-    {"ad": "Boom Bap", "tag": "dusty sampled piano loop, boom bap drums, 74 bpm"},
-    {"ad": "Flüt / Sonbahar", "tag": "soft flute, autumn afternoon, 71 bpm"},
-    {"ad": "Reverb Gitar", "tag": "mellow electric guitar, reverb tails, 67 bpm"},
-    {"ad": "Kahve Dükkânı", "tag": "lofi wurlitzer, coffee shop ambience, 73 bpm"},
-    {"ad": "Arp / Süzülen", "tag": "gentle harp arpeggio, floating, 64 bpm"},
-    {"ad": "Saksofon / Gece", "tag": "smooth saxophone, midnight city, 70 bpm"},
-    {"ad": "Müzik Kutusu", "tag": "toy piano, nostalgic music box, 66 bpm"},
-    {"ad": "Kontrbas", "tag": "warm upright bass walking, jazzy drums, 75 bpm"},
-    {"ad": "Ambient / Vurgusuz", "tag": "ambient pad with tape hiss, almost beatless, 62 bpm"},
+    {"ad": "Jazzy Rhodes", "tag": "gentle rhodes electric piano, 70 bpm"},
+    {"ad": "Naylon Gitar", "tag": "soft nylon string guitar, 68 bpm"},
+    {"ad": "Rüyalı Piyano", "tag": "felt piano, few notes, 65 bpm"},
+    {"ad": "Sordinli Trompet", "tag": "muted trumpet, slow phrases, 70 bpm"},
+    {"ad": "Analog Pad", "tag": "warm analog pad, very slow, 64 bpm"},
+    {"ad": "Vibrafon / Yağmur", "tag": "vibraphone, distant rain, 68 bpm"},
+    {"ad": "Boom Bap", "tag": "dusty piano loop, boom bap drums, 72 bpm"},
+    {"ad": "Flüt / Sonbahar", "tag": "soft flute, autumn mood, 68 bpm"},
+    {"ad": "Reverb Gitar", "tag": "clean electric guitar, long reverb, 66 bpm"},
+    {"ad": "Kahve Dükkânı", "tag": "wurlitzer, room ambience, 72 bpm"},
+    {"ad": "Arp / Süzülen", "tag": "harp arpeggio, floating, 64 bpm"},
+    {"ad": "Saksofon / Gece", "tag": "soft saxophone, slow, 68 bpm"},
+    {"ad": "Müzik Kutusu", "tag": "music box, nostalgic, 66 bpm"},
+    {"ad": "Kontrbas", "tag": "upright bass, brushed drums, 74 bpm"},
+    {"ad": "Ambient / Vurgusuz", "tag": "ambient pad, almost beatless, 60 bpm"},
 ]
 
 app = FastAPI(title="OXO Studio")
@@ -195,6 +198,29 @@ def _tqdm_yamasi():
     pl.tqdm = sarmalayici
 
 
+def _kaydetme_yamasi():
+    """torchaudio 2.11 kaydetme icin torchcodec sart kosuyor; o katman
+    herhangi bir sebeple patlarsa 15+ dakikalik uretim son adimda cope
+    gitmesin diye soundfile ile yaziyoruz."""
+    import acestep.pipeline_ace_step as pl
+    import soundfile as sf
+
+    orijinal = pl.torchaudio.save
+
+    def guvenli_kaydet(yol, dalga, sample_rate=48000, **kw):
+        try:
+            return orijinal(yol, dalga, sample_rate=sample_rate, **kw)
+        except Exception as e:
+            print(f"[!] torchaudio.save basarisiz ({e}); soundfile ile yaziliyor")
+            veri = dalga.detach().cpu().float().numpy()
+            if veri.ndim == 2:          # (kanal, ornek) -> (ornek, kanal)
+                veri = veri.T
+            sf.write(str(yol), veri, int(sample_rate))
+            return yol
+
+    pl.torchaudio.save = guvenli_kaydet
+
+
 def model_yukle():
     global PIPE
     if PIPE is not None:
@@ -220,7 +246,13 @@ def model_yukle():
 
     try:
         _tqdm_yamasi()
+        _kaydetme_yamasi()
         from acestep.pipeline_ace_step import ACEStepPipeline
+        # cpu_offload olculdu: her adimda CPU<->GPU tasima maliyeti
+        # kazandirdigi swap'ten pahaliya geldi (14 dk -> 20 dk), kapatildi.
+        # overlapped_decode da kapali: blok sinirlarinda olculen kucuk
+        # sureksizligi (1.19x) tamamen elemek icin. 3 dakikalik seste
+        # tek seferde cozme bellege sigiyor.
         PIPE = ACEStepPipeline(
             checkpoint_dir=str(MODEL_DIR),
             dtype="float16",
@@ -251,17 +283,95 @@ def model_bosalt():
         pass
 
 
+# ---------------------------------------------------------------- temizlik
+
+HAM_DIR = BASE / "output" / ".ham"
+
+# Olculerek secildi (bkz. README): 60 Hz altini iki kademeli kesmek
+# ugultuyu 9 dB dusuruyor ve muzikal basdan yalnizca 0.9 dB goturuyor;
+# afftdn hisirtiyi 8.4 dB azaltiyor. alimiter kirpilmaya karsi emniyet.
+# lowpass 1500: referans lo-fi parcalarinin spektral merkezi ~546 Hz
+# olcüldü, bizim ham cikti 2480 Hz idi. Bu zincir 555 Hz veriyor.
+TEMIZLIK_ZINCIRI = (
+    "highpass=f=60:poles=2,highpass=f=60:poles=2,"
+    "afftdn=nr=18:nf=-45:tn=1,"
+    "lowpass=f=1500:poles=2,treble=g=-6:f=4000,"
+    "alimiter=limit=0.95"
+)
+
+
+def sesi_temizle(ham: Path, hedef: Path) -> bool:
+    """Ham uretimi temizleyip hedefe yazar. Basarisiz olursa ham dosyayi
+    hedefe tasir - 15 dakikalik uretim filtre yuzunden kaybolmasin."""
+    try:
+        r = subprocess.run(
+            ["ffmpeg", "-v", "error", "-y", "-i", str(ham),
+             "-af", TEMIZLIK_ZINCIRI, str(hedef)],
+            capture_output=True, text=True, timeout=300,
+        )
+        if r.returncode == 0 and hedef.exists() and hedef.stat().st_size > 0:
+            ham.unlink(missing_ok=True)
+            return True
+        raise RuntimeError((r.stderr or "bilinmeyen hata").strip()[-200:])
+    except Exception as e:
+        print(f"[!] Temizlik basarisiz ({e}); ham dosya korunuyor")
+        try:
+            ham.replace(hedef)
+        except Exception:
+            pass
+        return False
+
+
 # ---------------------------------------------------------------- uretim
 
 class UretIstek(BaseModel):
     stil: int = 0
     ek_prompt: str = ""
-    sure: float = 240.0
+    sure: float = 180.0
     adim: int = 60
+    # 15 (ACE-Step varsayilani) dokuyu sisirip katman sayisini artiriyordu;
+    # dusuk deger daha seyrek ve tonal olarak tutarli sonuc veriyor.
+    guidance: float = 9.0
     seed: int | None = None
 
 
+SERI = {"aktif": False, "hedef": 0, "tamamlanan": 0, "dur": False}
+
+
+class SeriIstek(BaseModel):
+    adet: int = 10
+    sure: float = 180.0
+    adim: int = 60
+    guidance: float = 9.0
+    ek_prompt: str = ""
+
+
+def seri_isi(istek: SeriIstek):
+    """Stilleri sirayla dolasarak, her seferinde yeni seed ile uretir."""
+    SERI.update(aktif=True, hedef=istek.adet, tamamlanan=0, dur=False)
+    try:
+        for i in range(istek.adet):
+            if SERI["dur"]:
+                break
+            # stilleri sirayla dolas, ayni stil ust uste gelmesin
+            stil = (sonraki_numara() - 1) % len(STILLER)
+            tek = UretIstek(stil=stil, ek_prompt=istek.ek_prompt, sure=istek.sure,
+                            adim=istek.adim, guidance=istek.guidance, seed=None)
+            _tek_uret(tek, seri_bilgi=f"[{i+1}/{istek.adet}] ")
+            if DURUM["son_hata"]:
+                break
+            SERI["tamamlanan"] = i + 1
+    finally:
+        SERI.update(aktif=False, dur=False)
+        if not DURUM["son_hata"]:
+            _durum(mesaj=f"Seri bitti — {SERI['tamamlanan']} parça üretildi")
+
+
 def uretim_isi(istek: UretIstek):
+    _tek_uret(istek)
+
+
+def _tek_uret(istek: UretIstek, seri_bilgi: str = ""):
     try:
         IPTAL.clear()
         pipe = model_yukle()
@@ -275,9 +385,11 @@ def uretim_isi(istek: UretIstek):
         seed = istek.seed if istek.seed else random.randint(1, 2**31 - 1)
         idx = sonraki_numara()
         hedef = PARCA_DIR / f"lofi_{idx:03d}.wav"
+        HAM_DIR.mkdir(parents=True, exist_ok=True)
+        ham = HAM_DIR / f"lofi_{idx:03d}_ham.wav"
 
         _durum(asama="uretiliyor", baslangic=time.time(), son_hata=None,
-               mesaj=f"{hedef.name} üretiliyor — {stil['ad']}",
+               mesaj=f"{seri_bilgi}{hedef.name} üretiliyor — {stil['ad']}",
                adim=0, toplam_adim=istek.adim)
 
         pipe(
@@ -286,7 +398,7 @@ def uretim_isi(istek: UretIstek):
             prompt=prompt,
             lyrics="[instrumental]",
             infer_step=istek.adim,
-            guidance_scale=15.0,
+            guidance_scale=istek.guidance,
             scheduler_type="euler",
             cfg_type="apg",
             omega_scale=10.0,
@@ -297,14 +409,19 @@ def uretim_isi(istek: UretIstek):
             use_erg_tag=True,
             use_erg_lyric=False,
             use_erg_diffusion=True,
-            save_path=str(hedef),
+            save_path=str(ham),
             batch_size=1,
         )
 
+        _durum(mesaj=f"{seri_bilgi}{hedef.name} temizleniyor", adim=0, toplam_adim=0)
+        temiz = sesi_temizle(ham, hedef)
+
         gecen = time.time() - DURUM["baslangic"]
         kayit_ekle({
+            "temizlendi": temiz,
             "dosya": hedef.name, "prompt": prompt, "stil": stil["ad"],
             "seed": seed, "sure_sn": istek.sure, "adim": istek.adim,
+            "guidance": istek.guidance,
             "uretim_sn": round(gecen, 1),
         })
         _durum(asama="bos", mesaj=f"{hedef.name} hazır ({gecen/60:.1f} dk)",
@@ -392,6 +509,7 @@ def api_durum():
             "toplam_mb": round(sum(p["boyut_mb"] for p in parcalar), 1),
         },
         "stiller": [s["ad"] for s in STILLER],
+        "seri": dict(SERI),
     }
 
 
@@ -401,6 +519,24 @@ def api_uret(istek: UretIstek):
         if mesgul():
             raise HTTPException(409, "Şu an başka bir iş çalışıyor")
         threading.Thread(target=uretim_isi, args=(istek,), daemon=True).start()
+    return {"tamam": True}
+
+
+@app.post("/api/seri")
+def api_seri(istek: SeriIstek):
+    with KILIT:
+        if mesgul():
+            raise HTTPException(409, "Şu an başka bir iş çalışıyor")
+        threading.Thread(target=seri_isi, args=(istek,), daemon=True).start()
+    return {"tamam": True}
+
+
+@app.post("/api/seri-durdur")
+def api_seri_durdur():
+    if not SERI["aktif"]:
+        raise HTTPException(400, "Çalışan seri yok")
+    SERI["dur"] = True
+    _durum(mesaj="Seri durduruluyor — bu parça bitince duracak")
     return {"tamam": True}
 
 

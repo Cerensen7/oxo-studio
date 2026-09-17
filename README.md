@@ -86,6 +86,10 @@ tanım yazın (`cozy autumn study session, soft rain`), süre ve kaliteyi ayarla
 **Üret**'e basın. İlerleme çubuğu modelin **gerçek difüzyon adımlarını** gösterir
 — tahmini kalan süreyle birlikte. İstediğiniz an iptal edebilirsiniz.
 
+**Seri Üretim** — Tek tuşla 2–40 parça üretir, stilleri sırayla dolaşarak
+her birini farklı yapar. Arkada çalışır, panelde `3 / 10 tamamlandı` şeklinde
+ilerler, istediğiniz an durdurulur (çalışan parça bitince durur).
+
 **Parçalar** — Her parçayı panelden dinleyin, indirin veya silin. Sildiğiniz
 parça mix'e girmez. Her parçanın seed'i kaydedilir, beğendiğiniz bir parçayı
 birebir tekrar üretebilirsiniz.
@@ -148,12 +152,47 @@ boyutunu okuduğu için %0'da takılı kalıp birden %100'e atlıyordu.
 
 İkisi de [`arayuz/sunucu.py`](arayuz/sunucu.py) başında ayarlanır.
 
+## Ses kalitesi: ölçerek ayarlamak
+
+Bu projenin ayarları tahminle değil, referans parçalar ölçülerek seçildi.
+Beğenilen lo-fi parçalarla ham model çıktısı aynı metriklerle karşılaştırıldı:
+
+| Metrik | Referans lo-fi | Ham çıktı | Sonuç |
+|---|---|---|---|
+| Spektral merkez | ~546 Hz | 2480 Hz | **4.5× parlak** |
+| Nota entropisi | 3.53 | 3.49 | Fark yok |
+| Olay / saniye | 3.59 | 2.70 | Fark yok |
+
+Tek anlamlı fark ton rengiydi. Model "low pass filtered" etiketini
+dikkate almıyor; çözüm üretim sonrası filtre zinciri oldu:
+
+```
+highpass=60×2  →  uğultuyu 9 dB düşürür, müzikal bastan 0.9 dB götürür
+afftdn nr=18   →  hışırtıyı 8.4 dB düşürür
+lowpass=1500   →  spektral merkezi 2480 → 555 Hz'e indirir
+treble -6dB    →  kalan tizliği yumuşatır
+alimiter       →  kırpılmaya karşı emniyet
+```
+
+Her üretim bu zincirden otomatik geçer. Zincir patlarsa ham dosya korunur.
+
+### Prompt dersleri
+
+- **Uzun etiket listesi zarar veriyor.** 30 etiketten 12'ye inince katman
+  yoğunluğu %47 azaldı.
+- **`warm vinyl crackle` istemeyin.** Modelden cızırtı isterseniz verir;
+  arka planda sürekli hışırtı olarak duyulur.
+- **`guidance_scale` 15 çok yüksek.** 9 daha seyrek ve sakin sonuç verir.
+- **Ton bilgisi (`in A minor`) işe yaramıyor.** Metin koşullaması armonik
+  yapıyı yönlendirmiyor — bu modelin yapısal sınırı.
+
 ## Performans (MacBook Air M2, 16 GB)
 
 | İşlem | Süre |
 |---|---|
 | Modelin belleğe ilk yüklenmesi | ~1–2 dk (sonraki üretimlerde yok) |
-| 4 dakikalık parça, 60 adım | ölçüm README'de güncellenecek |
+| 3 dakikalık parça, 60 adım | 8–18 dk (bellek baskısına göre değişir) |
+| 4 dakikalık parça, 60 adım | 14–20 dk |
 | 3 saatlik mix birleştirme | ~1–2 dk |
 
 ## Lisans
